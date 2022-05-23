@@ -1,0 +1,87 @@
+```{r}
+rm(list=ls())
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(highcharter)
+library(htmltools)
+weather <- read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/nordics_weather.csv", 
+                  show_col_types=FALSE)
+###########
+# Load the world Map data
+data(worldgeojson, package = "highcharter")
+#########
+
+w <-weather%>%
+  replace_na(list(tavg=0))%>%
+  group_by(country)%>%
+  summarise(avg_temp=mean(tavg),
+            avg_snow_depth=mean(snow_depth))
+w$avg_temp <- round(w$avg_temp, digits=2)
+  highchart()%>%
+  hc_add_series_map(
+    worldgeojson, w, value="avg_temp", joinBy=c("name","country"), name="Average Temp"
+  )%>% 
+  hc_colorAxis(stops = color_stops())%>%
+    hc_title(text="Average Temperature in Celsuis")%>%
+    hc_subtitle(text="Source: KAGGLE.COM")
+```
+
+
+```{r}
+weather%>%
+  group_by("country")%>%
+  
+  hchart(
+    type="line", 
+    mapping=hcaes(
+      x=date, 
+      y=tavg, 
+      group=country
+    )
+  )%>%
+  hc_add_theme(hc_theme_darkunica())%>%
+    hc_title(text="Average Temperature in Celsuis", 
+             style=list(fontSize="500xp", 
+                        fontWeight="bold"))%>%
+      hc_subtitle(text="Source: KAGGLE.COM",
+                  fontWeight="em")%>%
+  hc_xAxis(
+         labels = list(
+             style = list(
+                 color = "#1DEBE4")))
+```
+
+
+
+```{r}
+rm(list=ls())
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(highcharter)
+library(viridis)
+library(htmltools)
+euvac <- read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/country_vaccinations.csv", 
+                  show_col_types=FALSE)
+
+custom_colors <- viridis:: mako(15)
+mapdata <-data("worldgeojson", package="highcharter")
+d <- euvac%>%
+  select(country, daily_vaccinations_per_million)%>%
+  replace_na(list(daily_vaccinations_per_million=0))%>%
+  group_by(country)%>%
+  summarise(avg_total_vacc=mean(daily_vaccinations_per_million))
+
+  d$avg_total_vacc=round(d$avg_total_vacc,digits=2)
+
+  highchart()%>%
+  hc_add_series_map(
+    worldgeojson, d, value="avg_total_vacc", joinBy=c("name","country"), name="Total vaccinations"
+  )%>% 
+  hc_colorAxis(stops = color_stops())%>%
+    hc_title(text="Total daily vaccinations")%>%
+    hc_subtitle(text="Source: KAGGLE.COM")
+```
+
+

@@ -1,0 +1,457 @@
+```{r}
+rm(list=ls())
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(highcharter)
+library(viridis)
+library(htmltools)
+euvac <- read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/country_vaccinations.csv",show_col_types=FALSE)
+
+custom_colors <- viridis:: plasma(15)
+
+f <-euvac%>%
+  na.omit()%>%
+  group_by(iso_code)%>%
+  summarise(people_fully_vaccinated=sum(people_fully_vaccinated))%>%
+  arrange(desc(people_fully_vaccinated))%>%
+  head(15)%>%
+  hchart(
+    type="bar",
+    hcaes(x=iso_code,
+          y=people_fully_vaccinated, 
+          color=custom_colors)
+  )%>%
+    hc_title(text="COVID-19 Vaccination Progress", 
+             style=list(fontSize="25xp", 
+                        fontWeight="bold"))%>%
+  hc_tooltip(pointFormat="<b>people vaccinated: </b> {point.y} <br>")%>%
+  hc_subtitle(text="EU vaccination by number of people fully vaccinated", 
+              style=list(fontSize="16xp"))%>%
+  hc_add_theme(hc_theme_darkunica())%>%
+  hc_xAxis(labels=list(
+    style=list(
+      color="#1DEBE4"
+    )
+  ))%>%
+  hc_colorAxis(stops = color_stops(n = 15, colors = c("#440154", "#21908C", "#FDE725")))%>%
+  hc_legend(enabled = FALSE)
+f
+```
+
+```{r}
+# clustering analysis
+rm(list=ls())
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(highcharter)
+library(viridis)
+library(htmltools)
+customers <- read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/WA_Fn-UseC_-Marketing-Customer-Value-Analysis.csv", show_col_types=FALSE)
+
+customers <- customers%>%
+  na.omit()%>%
+  rename(customer_life_value="Customer Lifetime Value")
+
+
+clusters <-customers %>%
+  select(customer_life_value, Income)%>%
+  na.omit()%>%
+  scale()%>%
+  kmeans(., centers=4,iter.max=150,nstart=150)
+customers <- customers%>% 
+  mutate(cluster=clusters$cluster)
+# 
+customers%>%
+  ggplot(mapping=aes(x=customer_life_value,
+                     y=Income, 
+                     col=as.factor(cluster))) + geom_point()
+```
+
+```{r}
+library(shiny)
+library(shinydashboard)
+library(ggplot2)
+library(gt)
+library(tidyverse)
+ui <- dashboardPage(
+  skin="purple",
+  dashboardHeader(title="Dashboard", 
+                  titleWidth=150),
+  dashboardSidebar(width=150),
+  dashboardBody(
+    fluidRow(
+    box( height=450,
+    tabsetPanel(type = "tabs",
+                  tabPanel("Plot", plotOutput("plot")),
+                  tabPanel("Summary", verbatimTextOutput("summary")),
+                  tabPanel("Table", tableOutput("table"))
+                   )
+    ), 
+    box(height=450,
+      tabsetPanel(type="tabs",
+                   
+        tabPanel("Plot",plotOutput("plot1")),
+        tabPanel("Table", tableOutput("tbl"))
+  ))
+  
+))
+)
+server <- function(input, output, session) {
+  output$plot1 <- renderPlot({
+    x<- c(-20:20)
+    y <-x^3
+    qplot(x,y)+geom_line()
+  })
+  output$plot <- renderPlot({
+    x<- c(-10:10)
+    y <- x^2
+    qplot(x,y)+geom_line()
+  })
+  output$table<- renderTable({
+    library(gt)
+     x<- 1:10
+    y <- x^2
+    gt(data.frame(x,y))
+  })
+}
+shinyApp(ui, server)
+```
+
+```{r}
+library(shiny)
+library(shinydashboard)
+library(ggplot2)
+library(gt)
+library(tidyverse)
+ui <- dashboardPage(
+  skin="purple",
+  dashboardHeader(title="Dashboard", 
+                  titleWidth=200),
+  dashboardSidebar(width=200, 
+                   sidebarMenuOutput("menu"),
+                   menuItem(text="Dashboard",
+                            tabName="dashboard", 
+                            icon=icon("dashboard")),
+                   menuItem(tabName="widgets", 
+                            icon=icon("th"), 
+                            text="widgets")),
+  dashboardBody(
+    fluidRow(
+    box(height=450,
+    tabsetPanel(type = "tabs",
+                  tabPanel("Plot", highchartOutput("plot")),
+                  tabPanel("Summary", verbatimTextOutput("summary")),
+                  tabPanel("Table", dataTableOutput("table"))
+                   )
+    ),
+    
+    box(height=450,
+      tabsetPanel(type="tabs",
+                  tabPanel("Plot",highchartOutput("plot1")),
+        tabPanel("Table", dataTableOutput("tbl"))
+  ))
+    
+  
+))
+)
+server <- function(input, output, session) {
+  
+output$table <- renderDataTable({
+  library(gt)
+  library(tidyverse)
+books <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/bestsellers.csv", show_col_types = FALSE)
+
+books%>%
+  select(Author,Price,Year, Reviews)%>%
+  head(3)
+})
+  output$plot <- renderHighchart({
+library(flexdashboard)
+library(tidyverse)
+library(highcharter)
+library(viridis)
+library(readr)
+library(htmltools)
+# importing data
+books <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/bestsellers.csv", show_col_types = FALSE)
+music <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/charts.csv", show_col_types = FALSE)
+
+#books
+# remove duplicate
+books <- books%>%
+  distinct(Name, .keep_all= TRUE)%>%
+  rename(User_Rating="User Rating")
+#######################################################
+# next we shall focuse on the dashboard
+# Most popular Authors 
+custom_colors <- viridis:: mako(n=15)
+books %>%
+  group_by(Author)%>%
+  summarise(Reviews=sum(Reviews))%>%
+  arrange(desc(Reviews))%>%
+  head(15) %>%
+  hchart(
+    type="column", hcaes(x=Author,
+                          y=Reviews,
+                          color=custom_colors)
+    )%>%
+  hc_add_theme(hc_theme_google())%>%
+  hc_tooltip(pointFormat='<b>Number of Reviews: </b> {point.y}<br>')%>%
+  hc_title(text='Most popular Authors from 2009 to 2019',
+           style=list(fontSize='25xp', fontWeight="bold"))%>%
+  hc_subtitle(text="By number of Reviews", 
+              style=list(fontSize="16xp"))%>%
+  hc_credits(enabled=TRUE, text="@miguelfzzz")
+  })
+  
+  
+  output$plot1 <- renderHighchart({
+library(flexdashboard)
+library(tidyverse)
+library(highcharter)
+library(viridis)
+library(readr)
+library(htmltools)
+# importing data
+books <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/bestsellers.csv", show_col_types = FALSE)
+music <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/charts.csv", show_col_types = FALSE)
+#books
+# remove duplicate
+books <- books%>%
+  distinct(Name, .keep_all= TRUE)%>%
+  rename(User_Rating="User Rating")
+    custom_color <- viridis:: plasma(n=15)
+# most popular_books
+books %>%
+  arrange(desc(Reviews))%>%
+  head(15)%>%
+  hchart(type="bar", 
+         hcaes( x=Name,
+                 y=Reviews,
+                 color=custom_color))%>%
+  hc_add_theme(hc_theme_google())%>%
+  hc_tooltip(pointFormat="<b>Number of Reviews: </b> {point.y} <br>")%>%
+  hc_title(text="Most popular books from 2009 to 2019",
+           style=list(fontSize="25xp", fontWeight="bold"))%>%
+  hc_subtitle(text="By the number of reviews",
+              style=list(fontSize="16xp"))%>%
+  hc_credits(enabled=TRUE, text="By_Albert")
+  })
+}
+shinyApp(ui, server)
+```
+
+we shall plot the market cap of different cryptos
+
+```{r}
+rm(list=ls())
+library(tidyverse)
+library(highcharter)
+library(viridis)
+library(readr)
+library(htmltools)
+
+crypto <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/Top 100 Cryptocurrency 2022.csv", show_col_types = FALSE)
+# remove duplicate
+crypto <- crypto%>%
+  rename(crypto_name="Crypto Name")
+
+n<-10
+    custom_color <- viridis:: plasma(n=n)
+# most popular_books
+crypto %>%
+  arrange(desc(Price))%>%
+  head(n)%>%
+  hchart(type="bar", 
+         hcaes( x=crypto_name,
+                 y=Price,
+                 color=custom_color))%>%
+  hc_add_theme(hc_theme_economist())%>%
+  hc_tooltip(pointFormat="<b>$: </b> {point.y} <br>")%>%
+  hc_title(text=paste0(n," most expensive cryptocurrencies"),
+           style=list(fontSize="500xp", fontWeight="bold"))%>%
+  hc_subtitle(text="By $ price ",
+              style=list(fontSize="16xp"))%>%
+  hc_credits(enabled=TRUE, text="By_Albert")
+```
+
+```{r}
+crypto %>%
+  rename(market_cap ="Market Cap")%>%
+  arrange(desc(market_cap))%>%
+  head(n)%>%
+  hchart(type="pie", 
+         hcaes( x=crypto_name,
+                 y=market_cap,
+                 color=custom_color))%>%
+  hc_add_theme(hc_theme_google())%>%
+  hc_tooltip(pointFormat="<b>$: </b> {point.y} <br>")%>%
+  hc_title(text=paste0(n," most expensive cryptocurrencies"),
+           style=list(fontSize="500xp", fontWeight="bold"))%>%
+  hc_subtitle(text="In billions $ ",
+              style=list(fontSize="16xp"))%>%
+  hc_credits(enabled=TRUE, text="By_Albert")
+  
+```
+
+```{r}
+library(shiny)
+library(shinydashboard)
+library(ggplot2)
+library(gt)
+library(tidyverse)
+#################################################################################
+ui <- dashboardPage(
+  skin="purple",
+  dashboardHeader(title="Dashboard", 
+                  titleWidth=200),
+  dashboardSidebar(width=200, 
+                   sidebarMenuOutput("menu"),
+                   menuItem(text="Dashboard",
+                            tabName="dashboard", 
+                            icon=icon("dashboard")),
+                   menuItem(tabName="widgets", 
+                            icon=icon("th"), 
+                            text="widgets"),
+                   br(),
+                   box( width=150,height=180, solidHeader=TRUE, collapsible = TRUE, background="purple",
+                tags$em("Cryptocurrency"),  tags$h6(" is any form of currency that exists digitally or virtually and uses cryptography to secure transactions. Cryptocurrencies don't have a central issuing or regulating authority, instead using a decentralized system to record transactions and issue new units.")
+                ),
+                   br(),
+                   
+    tags$img(height = 200, width = 200,src = "https://mir-s3-cdn-cf.behance.net/project_modules/max_1200/65685c54698981.596607f994962.jpg")
+                   ),
+  dashboardBody(
+    
+    box(height=420,
+    tabsetPanel(type = "tabs",
+                  tabPanel("Plot", highchartOutput("plot")),
+                  tabPanel("Summary", verbatimTextOutput("summary")),
+                  tabPanel("Table", gt_output("table"))
+                   )
+    ),
+    box(height=420,
+      tabsetPanel(type="tabs",
+                  tabPanel("Plot",highchartOutput("plot1")),
+        tabPanel("Table", gt_output("tbl"))
+  ))
+  )
+  )
+##############################################################################
+server <- function(input, output, session) {
+  ##################################
+  output$tbl <- render_gt({
+       library(readr)
+    library(tidyverse)
+    library(tidyquant)
+    ticker <- readr::read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/crypto tickers.csv", show_col_types=FALSE)
+    data <- tidyquant:: tq_get(get="stock.prices", 
+                               x=ticker$ticker) %>%
+      select(symbol,date,close)%>%
+      group_by(symbol)%>%
+      head(5)%>%
+      summary()
+  })
+  ##################################
+  output$table <- render_gt({
+    crypto <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/Top 100 Cryptocurrency 2022.csv", show_col_types = FALSE)
+    library(gt)
+    library(tidyverse)
+    crypto <- crypto%>%
+  rename(crypto_name="Crypto Name")
+
+    
+    crypto%>%
+      select(crypto_name, Price_USD= Price, market_cap_in_billions=`Market Cap`)%>%
+      head(5)%>%
+      gt()
+    
+      
+  })
+  ############
+output$plot <- renderHighchart({
+  crypto <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/Top 100 Cryptocurrency 2022.csv", show_col_types = FALSE)
+# remove duplicate
+crypto <- crypto%>%
+  rename(crypto_name="Crypto Name")
+n <- 10
+    custom_color <- viridis:: plasma(n=n)
+crypto %>%
+  rename(market_cap ="Market Cap")%>%
+  arrange(desc(market_cap))%>%
+  head(n)%>%
+  hchart(type="pie", 
+         hcaes( x=crypto_name,
+                 y=market_cap,
+                 color=custom_color))%>%
+  hc_add_theme(hc_theme_google())%>%
+  hc_tooltip(pointFormat="<b>Market Cap: </b> ${point.y} <br>")%>%
+  hc_title(text=paste0("Market Cap of ",n, " most expensive cryptocurrencies"),
+           style=list(fontSize="500xp", fontWeight="bold"))%>%
+  hc_subtitle(text="In billions $ ",
+              style=list(fontSize="16xp"))%>%
+  hc_credits(enabled=TRUE, text="By_Albert")%>%
+  hc_size(350,0)
+})
+output$summary <- renderPrint({
+  crypto <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/Top 100 Cryptocurrency 2022.csv", show_col_types = FALSE)
+# remove duplicate
+crypto <- crypto%>%
+  rename(crypto_name="Crypto Name")
+
+n<-10
+crypto %>%
+  rename(market_cap ="Market Cap")%>%
+  arrange(desc(Price))%>%
+  head(n)%>%
+  group_by(crypto_name)%>%
+  select(crypto_name, Price)%>%
+  summary()
+})
+#############
+  output$plot1 <- renderHighchart({
+    library(readr)
+    library(tidyverse)
+    library(tidyquant)
+    ticker <- readr::read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/crypto tickers.csv", show_col_types=FALSE)
+    data <- tidyquant:: tq_get(get="stock.prices", 
+                               x=ticker$ticker) %>%
+      select(symbol,date,close)
+    library(highcharter)
+    library(htmltools)
+    a <-data%>% 
+      group_by(symbol)%>% 
+      count(symbol)%>% 
+      nrow()
+    data %>%
+      group_by(symbol)%>%
+      hchart(
+        type="line", 
+        hcaes(
+          x=date, 
+          y=close, 
+          group=symbol
+        )
+      )%>%
+      hc_add_theme(hc_theme_economist())%>%
+      hc_size(350,300)%>%
+      hc_title(text=paste0("Price movements of ",a," biggest crypto assets"), 
+                           style=list(fontSize="500xp", 
+                                      fontWeight="bold"))%>%
+      hc_subtitle(text="Source: Yahoo Finance", 
+                  style=list(fontSize="16xp"))%>%
+      hc_tooltip(pointFormat="<b>$: </b> {point.y} <br>")%>%
+      hc_credits(text="By_ALBERT")%>%
+      hc_yAxis(opposite=TRUE, 
+               labels = list(format = "${value}"))
+      
+      
+  })
+  
+}
+shinyApp(ui=ui, server=server)
+```

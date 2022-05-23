@@ -1,0 +1,124 @@
+We need the following datasets: 
+"training" and "testing" datasets. 
+Length: 
+Training dataset ranges from 2010 till today - 30 trading days. 
+testing dataset: 30 trading days. 
+```{r}
+rm(list=ls())
+library(ggplot2)
+library(quantmod)
+library(tseries)
+library(tidyverse)
+
+df <- data.frame(
+  get.hist.quote(instrument ="GOOG", quote=c("Close"), compression="d", start="2021-01-01", end=(Sys.Date()-30)
+                 )
+)
+df<- df %>%
+  select(Close) %>%
+    mutate(Date = rownames(df))%>%
+  mutate(ret_stock =log(Close)-log(lag(Close)))%>%
+  na.omit()
+
+df$Date <- as.Date(df$Date)
+df %>%
+  ggplot(mapping=aes(x=Date, y=ret_stock, group=1))+geom_line(col="darkblue")+geom_point(col="red")+ scale_x_date(date_labels="%Y-%m")
+
+
+
+df <- df[1:(nrow(df)-30),] # training dataset
+first_date <- df$Date[1]
+last_date <- df$Date[nrow(df)]
+plot(df$Close, type="l", ylab="Price $", main="Stock Price over time", col="darkblue")
+
+plot(df$ret_stock, type="l", ylab="Return %", main="KO stock return")
+# estimate the model. 
+library("forecast")
+mdl <- auto.arima(df$Close,stationary = TRUE, ic = c("aicc", "aic", "bic"), 
+                          trace = TRUE)
+summary(mdl)
+# estimate the residuals and squared residuals
+et <- mdl$residuals
+etsq <- et^2
+
+#estimate ACF and PACF of the residuals and squared residuals.
+tsdisplay(et,lag.max=12,main="Residuals")
+
+checkresiduals(mdl)
+f <- forecast(mdl, h=10)
+print(f)
+plot(f, f$lower, f$upper, main="ARIMA model: 95% CI", xlab="Index", ylab="Stock price $")
+
+
+```
+
+
+```{r}
+# testing dataset: 
+tf <- data.frame(
+  get.hist.quote(instrument ="KO", start="2021-01-01", end=Sys.Date(), quote=c("Close"), compression="d")
+                 )
+tf <- tf%>%
+  select(Close) %>%
+  mutate(Date=rownames(tf)) 
+tf$Date <- as.Date(tf$Date)
+```
+
+```{r}
+plot(f, f$lower, f$upper, main="ARIMA model: 95% CI", xlab="Index", ylab="Stock price", ylim=c(min(tf$Close),max(tf$Close)))
+lines(mdl$fitted, lty=2, col="green") # arima model fitted data
+points(tf$Close, lty=3, col="red", type="l") # actual testing data 
+```
+
+```{r}
+library(shiny)
+library(shinydashboard)
+# create user interface
+ui <- dashboardPage(
+  dashboardHeader(title="Market return prediction App"), 
+  dashboardSidebar(
+    # Selecting the ticker 
+    textInput(inputId="ticker", 
+                  label="Choose a ticker", 
+                value="KO"), 
+    #Data frequency of the raw data
+    checkboxGroupInput(inputId="freq",
+                label="Select data frequency", 
+                choices=c("m","w","d"), selected="m"), 
+    #Date range of the raw data
+    dateRangeInput(
+      inputId="date",
+      label="Set the date range ", 
+      start="2010-01-01", 
+      end=Sys.Date()
+    ), 
+    # Select the type of data
+    selectInput(
+      inputId="ohlc", label="Choose OHLC data",choices=c("Open", "High", "Low","Close"),selected=c("Close")
+      )
+  ), 
+  dashboardBody(
+    # action button to update
+    actionButton(inputId="action", label=c("Update")),
+    fluidRow(
+      box(sliderInput(inputId="num1",
+                label="Choose date range", 
+                value=c(
+                  as.Date("2010-01-01"),
+                  Sys.Date()), 
+                  min=as.Date("2000-01-01"), 
+                  max=Sys.Date()
+                )
+                )),
+          
+    plotOutput(outputId="plot1")
+  )
+)
+# create server 
+server <- function(input,output) ({
+  
+})
+# Execute
+shinyApp(ui=ui, server=server)
+```
+

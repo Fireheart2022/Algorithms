@@ -1,0 +1,182 @@
+We need the following datasets: 
+"training" and "testing" datasets. 
+Length: 
+Training dataset ranges from 2010 till today - 30 trading days. 
+testing dataset: 30 trading days. 
+```{r}
+rm(list=ls())
+library(ggplot2)
+library(quantmod)
+library(tseries)
+library(tidyverse)
+# download the dataset:
+df <- data.frame(
+  get.hist.quote("AAPL", quote=c("Close"), compression="d", start="2010-01-01", end=(Sys.Date()-30)
+                 )
+)
+df<- df %>%
+  select(Close) %>%
+    mutate(Date = rownames(df))%>%
+  mutate(ret_stock =log(Close)-log(lag(Close)))%>%
+  na.omit()
+
+df$Date <- as.Date(df$Date)
+df %>%
+  ggplot(mapping=aes(x=Date, y=ret_stock, group=1))+geom_line(col="darkblue")+geom_point(col="red")+ scale_x_date(date_labels="%Y-%m")
+
+
+
+df <- df[1:(nrow(df)-30),] # training dataset
+first_date <- df$Date[1]
+last_date <- df$Date[nrow(df)]
+plot(df$Close, type="l", ylab="Price $", main="Stock Price over time", col="darkblue")
+
+plot(df$ret_stock, type="l", ylab="Return %", main="AAPL stock return")
+# estimate the model. 
+library("forecast")
+mdl <- auto.arima(df$Close)
+```
+
+
+```{r}
+summary(mdl)
+# estimate the residuals and squared residuals
+et <- mdl$residuals
+etsq <- et^2
+
+#estimate ACF and PACF of the residuals and squared residuals.
+tsdisplay(et,lag.max=12,main="Residuals")
+tsdisplay(etsq,lag.max=12,main="Residuals")
+a<-20
+f <- forecast(mdl, h=a)
+print(f)
+plot(f, f$lower, f$upper, main="ARIMA model: 95% CI", xlab="Index", ylab="Stock price $")
+
+
+```
+
+
+```{r}
+# testing dataset: 
+tf <- data.frame(
+  get.hist.quote(instrument ="AAPL", start="2010-01-01", end=Sys.Date(), quote=c("Close"), compression="d")
+                 )
+tf <- tf%>%
+  select(Close) %>%
+  mutate(Date=rownames(tf)) 
+tf$Date <- as.Date(tf$Date)
+```
+
+```{r}
+plot(f, f$lower, f$upper, main="ARIMA model: 95% CI", xlab="Index", ylab="Stock price", ylim=c(min(tf$Close),max(tf$Close)))
+lines(mdl$fitted, lty=2, col="green") # arima model fitted data
+points(tf$Close, lty=3, col="red", type="l") # actual testing data 
+```
+
+```{r}
+library(shiny)
+library(shinydashboard)
+library(highcharter)
+library(ggplot2)
+library(quantmod)
+library(tseries)
+library(lubridate)
+library(tidyverse)
+# create user interface
+ui <- dashboardPage(
+  dashboardHeader(title="Market return prediction App"), 
+  dashboardSidebar(
+    actionButton(
+      inputId="click",
+      label=c("Update")
+    )
+  ),
+ dashboardBody(
+   fluidRow(
+    # Selecting the ticker 
+    box(
+      textInput(inputId="ticker", 
+                  label="Choose a ticker", 
+                value="KO")
+        ),
+    # Choose a date range
+    box(
+        sliderInput(inputId="num1",
+                label="Choose date range", 
+                value=c(
+                  as.Date("2000-01-01"),
+                  Sys.Date()), 
+                  min=as.Date("2000-01-01"), 
+                  max=Sys.Date())
+                )
+    ),# the end of Fluid row
+   fluidRow(
+     # Select the type of data
+    box(
+      selectInput(
+      inputId="ohlc", label="Choose OHLC data",choices=c("Open", "High", "Low","Close"),selected=c("Close")
+      )
+      ),
+    #Data frequency of the raw data
+    box(
+      checkboxGroupInput(inputId="freq",
+                label="Select data frequency", 
+                choices=c("m","w","d"), selected="m")
+      )
+    ), # the end of fluidROw 
+     
+    
+     # Output the plot     
+    
+      highchartOutput(outputId="plot1")
+      
+    
+  )
+)
+# create server 
+server <- function(input,output) ({
+  # reactive expression of dataset...
+  dataInput <- reactive({
+    df<-data.frame(
+      get.hist.quote(input$ticker, 
+                     quote=c(input$ohlc), 
+                     compression=input$freq, 
+                     start=input$num1[1], 
+                     end=(input$num1[2]-30)
+                 )
+)
+df<- df %>%
+  select(Close) %>%
+    mutate(date =
+      rownames(df))%>%
+  mutate(returns =log(Close)-log(lag(Close)))%>%
+  na.omit()
+
+
+  })
+  # Plot the output...
+ 
+ output$plot1<- 
+    renderHighchart({
+    
+   dataInput() %>% hchart(., 
+         type = "line", 
+         hcaes(x = date, 
+               y = Close)
+         ) %>% 
+  hc_yAxis(opposite = TRUE,
+           labels = list(format = "{value}$"))%>%
+     hc_title(text=c("Stock price movement"))%>%
+     hc_subtitle(text=c("Source:finance.yahoo.com"))%>%
+      hc_add_theme(hc_theme_538())
+
+     
+  })
+ 
+ 
+})
+# Execute
+shinyApp(ui=ui, 
+         server=server)
+```
+

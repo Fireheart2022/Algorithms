@@ -1,0 +1,103 @@
+```{r}
+rm(list=ls())
+library(readxl)
+library('tidyverse')
+library('tseries')
+library(TTR)
+library(forecast)
+library(tibble)
+
+capm <- read_excel("C:/Users/alber/OneDrive/Desktop/capm.xlsx")
+capm <- capm %>%
+  mutate(ret_SANDP=log(SANDP)-log(lag(SANDP)),
+         ret_FORD=log(FORD)-log(lag(FORD)),
+         ret_GE=log(GE)-log(lag(GE)),
+         ret_MICROSOFT=log(MICROSOFT)-log(lag(MICROSOFT)),
+         ret_ORACLE
+=log(ORACLE
+)-log(lag(ORACLE
+)),
+         ret_USTB3M=log(USTB3M)-log(lag(USTB3M)))%>%
+  na.omit()
+mdl <- auto.arima(capm$ret_ORACLE, stationary = TRUE, ic = c("aicc", "aic", "bic"), 
+                          trace = TRUE)
+
+f <-forecast(mdl, 
+             h=20, level=95) # where h is measured in days ( depends on the dataset). 
+hchart(f)%>%
+  hc_title(text=" Forecasted values using ARIMA model")%>%
+  hc_yAxis(opposite = TRUE,
+           labels = list(format = "{value}"))%>%
+     hc_subtitle(text=c("Source:finance.yahoo.com"))%>%
+      hc_add_theme(hc_theme_538())%>%
+  hc_colors(col="darkblue")
+```
+output$plot4 <- renderHighchart({
+ f <- dataInput()%>%
+   select(returns_port)%>%
+   forecast(returns_port, 
+             h=20, level=95) # where h is measured in days ( depends on the dataset). 
+hchart(f)%>%
+  hc_title(text=" Forecasted values using ARIMA model")%>%
+  hc_yAxis(opposite = TRUE,
+           labels = list(format = "{value}"))%>%
+     hc_subtitle(text=c("Source:finance.yahoo.com"))%>%
+      hc_add_theme(hc_theme_538())%>%
+  hc_colors(col="darkblue")
+})
+
+```{r}
+#clean
+rm(list=ls())
+#import datasets 
+library(readxl)
+library(highcharter)
+library(ggplot2)
+library(quantmod)
+library(tseries)
+library(lubridate)
+library(tidyverse)
+library(forecast)
+library(tseries) 
+library(tidyquant)
+rawdata <- readxl::read_xlsx("C:/Users/alber/OneDrive/Desktop/HypeIndex.xlsx")
+tickers <- rawdata[,2]
+company <- rawdata[,1]
+df <- tq_get(get = "stock.prices",tickers)%>%
+    group_by(Ticker)%>%
+  tq_transmute(select = close, mutate_fun = periodReturn, period = "monthly", col_rename = "daily.returns")
+
+chart <- df%>% 
+  select(date, daily.returns)%>%
+  ggplot(mapping=aes(x=date,
+                     y=daily.returns,
+                     group=df$Ticker,
+                     color=df$Ticker))+geom_line(size=0.8) +
+    theme_tq() + 
+    scale_color_tq()
+chart
+
+hc <-df%>%
+  hchart(type="line",
+         hcaes(
+           x=date,
+           y=SMA,
+           group=Ticker
+         ))%>%
+  hc_title(text="Stock returns")%>%
+  hc_yAxis(opposite = TRUE,
+           labels = list(format = "{value}"))%>%
+     hc_subtitle(text=c("Source:finance.yahoo.com"))%>%
+      hc_add_theme(hc_theme_538())
+hc
+############################################################################
+w <- rawdata %>%
+  mutate(
+  weights=rawdata$`Market Cap`/sum(rawdata$`Market Cap`)
+  )
+df <-df%>%
+  group_by(Ticker)%>%
+  tq_mutate(select=daily.returns, mutate_fun=SMA, col_rename=c("SMA"))
+df
+```
+

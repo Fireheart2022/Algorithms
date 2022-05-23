@@ -1,0 +1,107 @@
+---
+title: "Book and Entertainment industry"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+```
+
+Column {data-width=600}
+-----------------------------------------------------------------------
+Chart A
+```{r}
+rm(list=ls())
+library(flexdashboard)
+library(tidyverse)
+library(highcharter)
+library(viridis)
+library(readr)
+library(htmltools)
+# importing data
+books <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/bestsellers.csv", show_col_types = FALSE)
+music <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/charts.csv", show_col_types = FALSE)
+
+num <-5
+#books
+# remove duplicate
+books <- books%>%
+  distinct(Name, .keep_all= TRUE)%>%
+  rename(User_Rating="User Rating")
+  
+music <- music%>%
+  distinct(artist, .keep_all= TRUE)%>%
+  rename(weeks_on_board="weeks-on-board")
+#######################################################
+# next we shall focuse on the dashboard
+# Most popular Authors 
+custom_colors <- viridis:: mako(n=num)
+books %>%
+  group_by(Author)%>%
+  summarise(Reviews=sum(Reviews))%>%
+  arrange(desc(Reviews))%>%
+  head(num) %>%
+  hchart(
+    type="column", hcaes(x=Author,
+                          y=Reviews,
+                          color=custom_colors)
+    )%>%
+  hc_add_theme(hc_theme_google())%>%
+  hc_tooltip(pointFormat='<b>Number of Reviews: </b> {point.y}<br>')%>%
+  hc_title(text='Most popular Authors from 2009 to 2019',
+           style=list(fontSize='25xp', fontWeight="bold"))%>%
+  hc_subtitle(text="By number of Reviews", 
+              style=list(fontSize="16xp"))%>%
+  hc_credits(enabled=TRUE, text="By Albert")
+```
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+### Chart B
+
+```{r}
+custom_colors <- viridis:: plasma(n=num)
+# most popular_books
+
+books %>%
+  arrange(desc(Reviews))%>%
+  head(num)%>%
+  hchart(type="bar", 
+         hcaes( x=Name,
+                 y=Reviews,
+                 color=custom_colors))%>%
+  hc_add_theme(hc_theme_google())%>%
+  hc_tooltip(pointFormat="<b>Number of Reviews: </b> {point.y} <br>")%>%
+  hc_title(text="Most popular books from 2009 to 2019",
+           style=list(fontSize="25xp", fontWeight="bold"))%>%
+  hc_subtitle(text="By the number of reviews",
+              style=list(fontSize="16xp"))%>%
+  hc_credits(enabled=TRUE, text="By Albert")
+```
+
+### Chart C
+
+```{r}
+x <- "artists"
+custom_colors <- viridis:: mako(n=num)
+music %>%
+  arrange(desc(weeks_on_board))%>%
+  head(num)%>%
+  hchart(type="bar", 
+         hcaes( x=artist,
+                 y=weeks_on_board,
+                 color=custom_colors))%>%
+  hc_add_theme(hc_theme_google())%>%
+  hc_tooltip(pointFormat="<b>Number of weeks on board: </b> {point.y} <br>")%>%
+  hc_title(text=paste0("Most popular ",x, " from 2009 to 2019"),
+           style=list(fontSize="25xp", fontWeight="bold"))%>%
+  hc_subtitle(text="By the # of weeks on board",
+              style=list(fontSize="16xp"))%>%
+  hc_credits(enabled=TRUE, text="By Albert")
+```
+

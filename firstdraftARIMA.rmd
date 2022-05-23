@@ -1,0 +1,79 @@
+```{r}
+rm(list=ls())
+library(tseries)
+library(tidyverse)
+library(highcharter)
+library(shiny)
+ui <- fluidPage(
+  titlePanel(title=strong("ARIMA forecasting future investment returns on a 2-asset portfolio")),
+ fluidRow(
+    sliderInput(inputId="time", 
+              label="Date range", 
+              min=as.Date("1990-01-01"), 
+              max=Sys.Date(), 
+              value=c( as.Date("2015-01-01"),
+                       Sys.Date()))
+        , 
+    textInput(inputId="ticker1", 
+              label="Equity instrument",
+              value="^GSPC"), 
+        sliderInput(inputId="weight1",
+                    label="Choose a weight for Equity",
+                    min=0,max=1,value=0.5)),
+  fluidRow(textInput(inputId="ticker2", 
+              label="Bond instrument",
+              value="^IRX"), 
+  sliderInput(inputId="weight2",
+                    label="Choose a weight for Bond",
+                    min=0,max=1,value=0.5)),
+  highchartOutput(outputId="plot")
+)
+server <- function(input,output){
+  output$plot <- renderHighchart({
+data <- get.hist.quote(instrument=input$ticker1,
+                           start=input$time[1],
+                           end=input$time[2], 
+                           compression="m", 
+                           quote="Close")
+
+df1 <- data.frame(data)
+df1$date <- rownames(df1)
+  
+    
+data1 <- get.hist.quote(instrument=input$ticker2,
+                           start=input$time[1],
+                           end=input$time[2], 
+                           compression="m", 
+                           quote="Close")
+
+df2<- data.frame(data1) 
+df2$date <- rownames(df2)
+
+  
+    
+df <-inner_join(df1,df2,by="date")
+
+df <-df %>%
+  mutate(ret_x=log(Close.x) - log(lag(Close.x)),
+             ret_y=log(Close.y) -log(lag(Close.y)))
+
+df<- df%>%
+  mutate(ret_port =input$weight1*ret_x + input$weight2*ret_y)
+
+library(forecast)
+mdl <- auto.arima(df$ret_port)
+mdl
+f <- forecast(mdl, h=20)
+library(highcharter)
+hchart(f)%>% 
+                hc_yAxis(opposite = TRUE,
+                          labels = list(format = "{value}"))%>%
+                hc_title(text=c("Forecasting portfolio returns"))%>%
+                 hc_subtitle(text=c("Source:finance.yahoo.com"))%>%
+                 hc_add_theme(hc_theme_538())
+
+            
+})
+}
+shinyApp(ui,server)
+```

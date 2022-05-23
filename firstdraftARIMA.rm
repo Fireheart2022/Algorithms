@@ -1,0 +1,215 @@
+```{r}
+rm(list=ls())
+library(tidyverse)
+library(tseries)
+library(highcharter)
+library(shiny)
+ui <- fluidPage(
+
+    sliderInput(
+      inputId="time", 
+      label="choose a date range",
+      min=as.Date("1990-01-01"),
+      max=Sys.Date(), 
+      value=c(as.Date("1990-01-01"),
+              Sys.Date()
+              )),
+    
+    textInput(inputId="ticker1", 
+              label="choose a ticker1",
+              value="^GSPC"),
+    
+    textInput(inputId="ticker2", 
+              label="choose a ticker2",
+              value="^IRX"),
+    sliderInput(
+      inputId="weight1", 
+      label="choose a weight for equity",
+      min=0,
+      max=1, 
+      value=0.5),
+    
+    sliderInput(
+      inputId="weight2", 
+      label="choose a weight for bond",
+      min=0,
+      max=1, 
+      value=0.5),
+    checkboxGroupInput(
+      inputId="freq", 
+      label="Data frequency", 
+      choices=c("m","w","d"), 
+      selected="m"
+    ), 
+    selectInput(
+      inputId="ohlc", label="Choose OHLC data",choices=c("Open", "High", "Low","Close"),selected=c("Close")
+      ), 
+    highchartOutput(outputId="plot")
+   
+)
+server <- function(input,output){
+  
+  # Now build the highchart of the forecast 
+  datainput <- reactive({
+    data1 <- get.hist.quote(instrument=input$ticker1,
+                           start=input$time[1],
+                           end=input$time[2], 
+                           compression=input$freq, 
+                           quote=input$ohlc)
+df1<- data.frame(data1)
+df1$date <- rownames(df1)
+    
+data2 <- get.hist.quote(instrument=input$ticker2,
+                           start=input$time[1],
+                           end=input$time[2], 
+                           compression=input$freq, 
+                           quote=input$ohlc)
+
+df2 <- data.frame(data2)
+df2$date <- rownames(df2)
+  
+    
+df <-inner_join(df1,df2,by="date")
+
+df <-df %>%
+  mutate(ret_x=log(Close.x) - log(lag(Close.x)),
+             ret_y=log(Close.y) -log(lag(Close.y)))
+
+df<- df%>%
+  mutate(ret_port =input$weight1*ret_x + input$weight2*ret_y)
+  df$ret_port
+  })
+  # find the best ARIMA model for our data  
+  output$plot <-renderHighchart({
+    fit<- auto.arima(datainput())
+    hc(
+      fit
+    )
+  })
+}
+shinyApp(ui=ui,server=server)
+```
+
+
+```{r}
+rm(list=ls())
+library(tseries)
+library(tidyverse)
+library(highcharter)
+library(shiny)
+ui <- fluidPage(
+ fluidRow(
+    sliderInput(inputId="time", 
+              label="Date range", 
+              min=as.Date("1990-01-01"), 
+              max=Sys.Date(), 
+              value=c( as.Date("2015-01-01"),
+                       Sys.Date()))
+        , 
+    textInput(inputId="ticker1", 
+              label="Equity instrument",
+              value="^GSPC"), 
+        sliderInput(inputId="weight1",
+                    label="Choose a weight for Equity",
+                    min=0,max=1,value=0.5)),
+  fluidRow(textInput(inputId="ticker2", 
+              label="Bond instrument",
+              value="^IRX"), 
+  sliderInput(inputId="weight2",
+                    label="Choose a weight for Bond",
+                    min=0,max=1,value=0.5)),
+  highchartOutput(outputId="plot")
+)
+server <- function(input,output){
+  output$plot <- renderHighchart({
+
+data <- get.hist.quote(instrument=input$ticker1,
+                           start=input$time[1],
+                           end=input$time[2], 
+                           compression="m", 
+                           quote="Close")
+
+df1 <- data.frame(data)
+df1$date <- rownames(df1)
+  
+    
+data1 <- get.hist.quote(instrument=input$ticker2,
+                           start=input$time[1],
+                           end=input$time[2], 
+                           compression="m", 
+                           quote="Close")
+
+df2<- data.frame(data1) 
+df2$date <- rownames(df2)
+
+  
+    
+df <-inner_join(df1,df2,by="date")
+
+df <-df %>%
+  mutate(ret_x=log(Close.x) - log(lag(Close.x)),
+             ret_y=log(Close.y) -log(lag(Close.y)))
+
+df<- df%>%
+  mutate(ret_port =input$weight1*ret_x + input$weight2*ret_y)
+
+library(forecast)
+mdl <- auto.arima(df$ret_port)
+mdl
+f <- forecast(mdl, h=20)
+library(highcharter)
+hchart(f)%>% 
+  hc_yAxis(opposite = TRUE,
+           labels = list(format = "{value}"))%>%
+     hc_title(text=c("Portfolio returns"))%>%
+     hc_subtitle(text=c("Source:finance.yahoo.com"))%>%
+      hc_add_theme(hc_theme_538())
+})
+}
+
+shinyApp(ui,server)
+```
+
+server <- function(input, output, session){
+  #Build a reactive expression to save time for data import. 
+  # Then convert the zoo into dataframe expression, convert dates into as.Date. 
+  dataInput <- reactive({
+data <- get.hist.quote(instrument=input$ticker1,
+                           start=input$time[1],
+                           end=input$time[2], 
+                           compression=input$freq, 
+                           quote=input$ohlc)
+data<- data.frame(data)%>%
+  mutate(date=rownames(data))
+  
+    
+data1 <- get.hist.quote(instrument=input$ticker2,
+                           start=start,
+                           end=end, 
+                           compression=input$freq, 
+                           quote=input$ohlc)
+
+data1 <- data.frame(data1)%>%
+  mutate(date=rownames(data1))
+  
+    
+df <-inner_join(data,data1,by="date")
+
+df <-df %>%
+  mutate(ret_x=log(Close.x) - log(lag(Close.x)),
+             ret_y=log(Close.y) -log(lag(Close.y)))
+
+df<- df%>%
+  mutate(ret_port =input$weight1*ret_x + input$weight2*ret_y)
+    })
+  
+  # find the best ARIMA model for our data  
+  fit<- auto.arima(dataInput())
+  # Now build the highchart of the forecast 
+  output$plot <- renderHighchart({
+    hchart(
+      fit
+    )
+  })
+  
+}

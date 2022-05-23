@@ -1,0 +1,33 @@
+```{r}
+rm(list=ls())
+library("gt")
+library("dplyr")
+library("tidyverse")
+library(glue)
+library(scales)
+packageVersion("gt")
+emissions_data <- 
+  read_csv("C:/Users/alber/OneDrive/Desktop/per-capita-co2-domestic-aviation.csv")%>% 
+  data.frame()%>%
+  arrange(desc(
+    Per.capita.domestic.aviation.CO2
+    )
+)
+
+#Generate a gt table from head of data
+head(emissions_data) %>% 
+  gt()
+(emissions_table <- head(emissions_data) %>% 
+   gt() %>% 
+   #Hide unwanted columns
+   cols_hide(columns = vars(Code)) %>% 
+   #Rename columns
+   cols_label(Entity = "Country",
+              Per.capita.domestic.aviation.CO2 = "Per capita emissions (tonnes)") %>% 
+   #Add a table title
+   #Notice the `md` function allows us to write the title using markdown syntax (which allows HTML)
+   tab_header(title = md("Comparison of per capita CO<sub>2</sub> emissions from domestic aviation (2018)")) %>% 
+   #Add a data source footnote
+   tab_source_note(source_note = "Data: Graver, Zhang, & Rutherford (2019) [via Our World in Data]"))
+```
+

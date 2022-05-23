@@ -1,0 +1,106 @@
+---
+title: "Dashoard"
+author: "Albert"
+
+output:
+  flexdashboard::flex_dashboard:
+    theme:
+      
+      version: 4
+      bg: "#101010"
+      fg: "#FDF7F7" 
+      primary: "#ED79F9"
+      navbar-bg: "#3ADAC6"
+      base_font: 
+        google: Prompt
+      heading_font:
+        google: Sen
+      code_font:
+        google: 
+          # arguments to sass::font_google() 
+          family: JetBrains Mono
+          local: false
+            
+
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+```
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### Chart A
+
+```{r}
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(highcharter)
+library(viridis)
+library(htmltools)
+alcohol <- read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/alcohol-consumption.csv", show_col_types=FALSE)
+names(alcohol)[4] <- 'cons'
+names(alcohol)[1] <- 'country'
+custom_colors <- viridis:: mako(15)
+mapdata <-data("worldgeojson", package="highcharter")
+d <- alcohol%>%
+  select(country, cons)%>%
+  
+  group_by(country)%>%
+  summarise(cons=median(cons))
+
+  d$cons=round(d$cons,digits=2)
+
+  highchart()%>%
+  hc_add_series_map(
+    worldgeojson, d, value="cons", joinBy=c("name","country"), name="Total alcohol consumption per capita"
+  )%>% 
+  hc_colorAxis(stops = color_stops())%>%
+    hc_title(text="Total alcohol consumption per capita")%>%
+    hc_subtitle(text="Source: KAGGLE.COM")%>%
+    hc_add_theme(hc_theme_bloom())
+   
+```
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### Chart B
+
+```{r}
+rm(list=ls())
+library(highcharter)
+library(tidyverse)
+library(htmltools)
+library(viridis)
+library(readr)
+
+box_office <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/mcu_box_office.csv", show_col_types = FALSE)
+
+n <- 10
+custom_colors <- viridis::mako(n=n)
+box_office %>%
+  arrange(desc(worldwide_box_office))%>%
+  head(n)%>%
+hchart(type="column",
+       hcaes(x=movie_title,
+             y=worldwide_box_office,
+             color=custom_colors))%>%
+  hc_tooltip(pointFormat="<b>Total revenue:</b> ${point.y} <br>")%>%
+  hc_title(text="World box office of MARVEL films ",
+           style=list(fontSize="16xp", fontWeight="bold"))%>%
+  hc_subtitle(text="Source: KAGGLE")%>%
+  hc_xAxis(opposite=FALSE, 
+               text = "Movie title")%>%
+  hc_add_theme(hc_theme_bloom())
+  
+```
+
+
+
+```{r}
+
+```
+
