@@ -1,0 +1,38 @@
+---
+title: "Unemployment in the USA"
+author: 'Albert Haniev'
+output: pdf_document
+date: '2022-05-24'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, echo=FALSE,include =FALSE}
+rm(list=ls())
+library(data.table)
+library(quantmod)
+df<- quantmod::getSymbols(Symbols="UNRATE", src="FRED", auto.assign=FALSE)
+class(df)
+library(tidyverse)
+a <-df%>%
+  data.frame()%>%
+  mutate(category=if_else(UNRATE <= 0, "Failed", "Success"))
+a <-a%>%
+  mutate(dates=as.Date(as.character(rownames(a)))
+  )
+library(ggplot2)
+```
+Unemployment is one of the most critical economic issues facing the country as it continues to grapple with the impacts of the pandemic.
+
+The unemployment rate reached 14.8% in April 2020 after federal and local governments shut down the economy.1 That was the highest level of unemployment since the Great Depression.The US unemployment rate was unchanged at 3.6 percent in April of 2022, remaining the lowest since February 2020 and compared with market expectations of 3.5 percent.
+The number of unemployed people declined by 11 thousand to 5.941 million, while employment levels fell by 353 thousand to 158.105 million. Meanwhile, the labor force participation rate fell to a 3-month low of 62.2 percent in April, from 62.4% in March.
+
+
+```{r, echo=FALSE,fig=TRUE}
+ggplot(data=a, mapping=aes(x=dates, y=UNRATE/100)) + geom_line(col="#203354")+ggtitle("Unemployment in the USA", 
+                                                                                    subtitle="Source:FRED.com")+ theme_bw() + scale_y_continuous(labels=scales::percent_format())+ ylab(label="Unemployment rate (%)") + xlab("Dates")
+```
+
+
