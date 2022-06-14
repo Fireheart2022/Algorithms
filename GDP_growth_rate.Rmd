@@ -1,0 +1,60 @@
+---
+title: "Real Growth Rate in Europe in May 2022"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    code_source: embed
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+```
+
+Column {data-width=1000}
+-----------------------------------------------------------------------
+
+### Chart
+
+```{r}
+library(tidyverse)
+library(highcharter)
+library(dplyr)
+library(readxl)
+library(viridis)
+
+df <- readxl::read_xlsx(path="C:/Users/alber/OneDrive/Desktop/charts.csv/Real GDP Growth.xlsx")
+mapdata <-get_data_from_map(download_map_data("custom/europe"))
+names(mapdata)[6] <- "Country"
+data_full <- inner_join(df, mapdata, by="Country")
+names(data_full)[2] <- "Real_GDP_growth"
+
+colors <- viridis::inferno(n=length(data_full))
+hcmap(
+  map="custom/europe",
+  data=data_full,
+  value="Real_GDP_growth",
+  joinBy = c("name", "Country"),
+    name = "Real GDP growth rate",
+    dataLabels = list(enabled = FALSE, format = "{point.name}"),
+    borderColor = "black",
+    borderWidth = 0.2,
+    tooltip = list(
+        valueDecimals = 2,
+        valueSuffix = "%"
+))%>%
+  hc_colorAxis(stops = color_stops(colors = viridis::inferno(length(data_full))))%>%
+  
+  hc_mapNavigation(enabled=TRUE)%>%
+  hc_add_theme(hc_theme_google())%>%
+    hc_title(text="Real GDP Growth rate across Europe", 
+             style=list(fontSize="500xp", 
+                        fontWeight="bold"))%>%
+      hc_subtitle(text="Source: Trading Economics",
+                  fontWeight="em")%>%
+  hc_credits(text="Created by Albert")
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
