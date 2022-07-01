@@ -1,0 +1,49 @@
+---
+title: "Untitled"
+output: html_document
+date: '2022-06-29'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(highcharter)
+library(htmltools)
+```
+
+```{r}
+rm(list=ls())
+df <- data.frame(country=rep(c("Ukraine", "Russia", "the USA"), each=2),
+                years=rep(c(1990, 2019),3),
+                values=c(10.13, 6.17, 8.02, 4.11, 4.79, 2))
+
+df %>% 
+    
+  hchart(type = 'column', hcaes(x = country, y = values, group = years)) %>%
+    
+  hc_title(text = "How much did the gang really drink?",
+           style = list(fontWeight = "bold", fontSize = "30px"),
+           align = "center") %>% 
+  
+  hc_subtitle(text = 
+                    "'All I want was to have a regular beer at my            regular bar with my regular friends in my regular city.'-Ted Mosby", 
+              style = list(fontWeight = "bold"),
+              align = "center") %>% 
+  
+  hc_credits(enabled = TRUE, 
+             text = "Data Source: HIMYM;https://imgur.com/user/haaaaaaaveyoumetted",
+             style = list(fontSize = "10px")) %>% 
+  
+  hc_add_theme(hc_theme_ffx())%>%
+  hc_xAxis(opposite=TRUE,title = list(text = ""))%>%
+  hc_yAxis(
+    title=list(text="Values"),
+           labels = list(format = "{value}%"), 
+           max = 10)%>%
+  hc_tooltip(
+    pointFormat="</b>{point.y}% <br>")%>%
+  hc_plotOptions(
+    series = list(animation = list(duration = 5000))
+    )
+  
+```
+
