@@ -13,8 +13,8 @@ library(tidyquant)
 library(quantmod)
 library(dplyr)
 ```
-Column {.tabset .tabset-fade data-width=500}
------------------------------------------------------------------------
+
+## Column {.tabset .tabset-fade data-width="500"}
 
 ### Highchart Performance
 
@@ -24,6 +24,10 @@ library(ggplot2)
 library(tidyquant)
 library(quantmod)
 library(dplyr)
+library(highcharter)
+library(tidyverse)
+library(highcharter)
+library(htmltools)
 #------------------------------------------------------------
 ticker <-c("0150.HK",
 "1913.HK",
@@ -65,14 +69,16 @@ stock_returns_monthly <- df %>%
                  mutate_fun = periodReturn, 
                  period     = "monthly", 
                  col_rename = "Ra")
-#----------------------------------------------------------------
+#-----------------------------------------------------------
 market_caps <- c(0.256,312,178,118,72.2,69.3,65.5,60.4,54.5,34.5,30.7,22.6,19.8,18.7,13.8,12.2,11.3,10.6,8.39,8.31,6.75,5.35,4.83,4.22,3.60,3.48,3.31,2.79,2.69,1.11 )%>%
   data.frame()
 weights <-market_caps%>%
   mutate(weights = market_caps/sum(market_caps))
 colnames(weights) <-c("Market_cap","weights")
 wts <- weights$weights
-w <-wts%>%zoo()%>%as.numeric()
+w <-wts%>%
+  zoo()%>%
+  as.numeric()
 #------------------------------------------------------------------------------------
 portfolio_growth_monthly <- stock_returns_monthly %>%
     tq_portfolio(assets_col   = symbol, 
@@ -81,37 +87,33 @@ portfolio_growth_monthly <- stock_returns_monthly %>%
                  col_rename   = "investment.growth",
                  wealth.index = TRUE) %>%
     mutate(investment.growth = investment.growth * 1000)
-#--------------------------------------------------------------------
-portfolio_growth_monthly %>%
-  ggplot(., mapping=aes(x=date, y=investment.growth))+
-    geom_line(size = 2) +
-    labs(title = "Portfolio Growth",
-         subtitle = "Comparing Multiple Portfolios",
-         x = "", y = "Portfolio Value",
-         color = "Portfolio") +
-    geom_smooth(method = "loess") +
-    theme_tq() +
-    scale_color_tq() +
-    scale_y_continuous(labels = scales::dollar)
-
-library(highcharter)
-library(htmltools)
-portfolio_growth_monthly %>%
-  hchart(.,
-         type="line",
-         mapping=hcaes(x=as.Date(date), 
-                       y=round(investment.growth,digits=2)))%>%
+#---------------------------------------------------------------
+# XTS data
+xts_data <- xts(x=portfolio_growth_monthly$investment.growth, order.by=portfolio_growth_monthly$date)
+# highchart with xts_data 
+colnames(xts_data) <- "investment.growth"
+  
+hchart(round(xts_data$investment.growth,digits=2), 
+         type="line")%>%
   hc_tooltip(pointFormat="<b>Portfolio Value:</b> ${point.y} <br>")%>%
   hc_title(text="Cumulative Growth of a $1000 Investment in HYPEBEAST Index",
            style=list(fontSize="16xp", fontWeight="bold"))%>%
   hc_subtitle(text="Equity-Weighted HypeBeast Index Portfolio")%>%
   hc_xAxis(title = list(text="Dates"))%>%
-  hc_add_theme(hc_theme_google())%>%
+  hc_add_theme(hc_theme_ffx())%>%
   hc_colors(colors="#29485b")%>%
-  hc_yAxis(title=list(text="Investment Growth"))%>%
-  hc_plotOptions(series = list(animation = list(duration = 25000)))
+  hc_yAxis(title=list(text="Investment Growth"),
+           labels = list(format = "{value}$"), 
+           max =max(xts_data$investment.growth))%>%
+  hc_plotOptions(series = list(animation = list(duration = 5000)))
+
+#-------------------------------------------------------
+
+
 ```
+
 ### Market Indicator
+
 ```{r}
 portfolio_growth_monthly %>%
   ggplot(., mapping=aes(x=date, y=investment.growth))+
@@ -127,9 +129,7 @@ portfolio_growth_monthly %>%
 
 ```
 
-
-Column {data-width=500}
------------------------------------------------------------------------
+## Column {data-width="500"}
 
 ### Heatmap
 
@@ -186,4 +186,3 @@ div(style='height:600px; overflow-y: scroll', gt(tbl)%>%
 )
 
 ```
-
