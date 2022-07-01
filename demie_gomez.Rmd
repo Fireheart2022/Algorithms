@@ -1,0 +1,56 @@
+---
+title: "Global Inflation rate"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    source_code: embed
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+```
+
+Column {data-width=1000}
+-----------------------------------------------------------------------
+
+### Chart A
+
+```{r}
+rm(list=ls())
+library(highcharter)
+library(rvest)
+library(tidyverse)
+library(readr)
+library(viridis)
+library(htmltools)
+df <- readr:: read_csv(file="C:/Users/alber/OneDrive/Desktop/charts.csv/eddie_donmez.csv")
+
+df <- filter(df, Last<= 30)
+mapdata <- get_data_from_map(download_map_data("custom/world-highres2"))
+names(mapdata)[6] <- "Country"
+map <- inner_join(df, mapdata, by="Country")
+hcmap(
+    "custom/world-highres2",
+    data = map,
+    value = "Last",
+    joinBy = c("name", "Country"),
+    name = "Inf. rate",
+    dataLabels = list(enabled = FALSE, format = "{point.name}"),
+    borderColor = "black",
+    borderWidth = 0.2,
+    tooltip = list(
+        valueDecimals = 2,
+        valueSuffix = "%"
+    )
+)%>%
+  hc_add_theme(hc_theme_economist())%>%
+    hc_title(text="Global Inflation Rate", 
+             style=list(fontSize="500xp", 
+                        fontWeight="bold"))%>%
+      hc_subtitle(text="Source: Trading Economics",
+                  fontWeight="em")%>%
+  hc_credits(text="Created by Albert")%>%
+  hc_mapNavigation(enabled=TRUE)%>%
+  hc_colorAxis(stops = color_stops(colors = viridis::inferno(length(df))))
+```
