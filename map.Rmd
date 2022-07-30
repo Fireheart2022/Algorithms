@@ -1,0 +1,72 @@
+---
+title: "Global CPI Inflation Rate"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+```
+
+Column {data-width=1000}
+-----------------------------------------------------------------------
+### 
+```{r}
+rm(list=ls())
+library(rvest)
+library(tidyverse)
+library(highcharter)
+library(viridis)
+
+url <- "https://tradingeconomics.com/country-list/inflation-rate?continent=world"
+countries <- url %>%
+  read_html()%>%
+  html_nodes("td:nth-child(1)")%>%
+  html_text(trim=TRUE)
+
+inflation_rate <- url %>%
+  read_html()%>%
+  html_nodes("td:nth-child(2)")%>%
+  html_text(trim=TRUE)%>%
+  as.numeric()
+#inflation rate data
+df <-data.frame(countries, inflation_rate)%>%
+  arrange(desc(inflation_rate))
+
+
+mapdata <- highcharter::get_data_from_map(
+  download_map_data(url = "custom/world.js")
+  )
+colnames(mapdata)[6] <- "countries"
+
+# now build a map
+
+df[82,1] <- "United States of America"
+df<- df%>%
+  filter(., inflation_rate<=30)
+
+hcmap(
+  map="custom/world",
+  data=df, 
+  value="inflation_rate", 
+  joinBy=c("name", "countries"), 
+  name="Inf.rate",
+  dataLabels = list(enabled = FALSE, format = "{point.name}"),
+    borderColor = "black",
+    borderWidth = 0.1,
+    tooltip = list(
+        valueDecimals = 2,
+        valueSuffix = "%"
+  ))%>%
+  hc_add_theme(hc_theme_ffx())%>% 
+  hc_legend(align = "right", verticalAlign = "top",
+            layout = "vertical", x = 0, y = 1)%>%
+  hc_title(text="Global Inflation Rate", 
+           style=list(fontWeight="bold", fontSize="16xp"))%>%
+  hc_subtitle(text="The self-updated map shows the latest inflation rate across countries")%>%
+  hc_credits(text="Source:Trading Economics")%>%
+  hc_colorAxis(stops = color_stops(colors = viridis::plasma(nrow(df))))%>%
+  hc_mapNavigation(enabled=TRUE)
+```
