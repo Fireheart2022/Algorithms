@@ -1,0 +1,190 @@
+---
+title: "Old Faithful Eruptions"
+output: flexdashboard::flex_dashboard
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(shinydashboard)
+```
+
+Column{.sidebar data-width=180}
+-----------------------------------------------------------------------
+```{r}
+sliderInput(inputId="num",
+            label="Mu", 
+            min=0, 
+            max=1, 
+            value=0.5
+            )
+```
+
+Column {.tabset .tabset-fade}
+-----------------------------------------------------------------------
+
+### Geometric Brownian Motion
+```{r}
+rm(list=ls())
+s0 <- 150
+sigma<-0.123
+mu <-0.23
+nsim <-500
+t<-300
+gbm <- matrix(ncol=nsim, nrow=t)
+gbm[1,1:nsim] <- s0
+for (simu in 1:nsim){
+  for(day in 2:t){
+    epsilon <- rnorm(1)
+    dt <- 1/365
+    gbm[day,simu] <- gbm[(day-1),simu]*exp((mu-sigma*sigma/2)*dt + sigma*sqrt(dt)*epsilon)
+  }
+}
+library(tidyverse)
+library(ggplot2)
+library(gganimate)
+gbm%>%
+    as.data.frame()%>%
+  mutate(ix=1:nrow(gbm))%>%
+  pivot_longer(-ix, names_to="sim", values_to="price")%>%
+  ggplot(., mapping=aes(x=ix, y=price, color=sim))+geom_line()+
+  theme(legend.position="none")+ scale_y_continuous(labels=scales::dollar)+
+  labs(title="Geometric brownian motion", 
+       x="Time",
+       y="Price")+
+  transition_reveal(ix) 
+```
+
+### Distribution of price from GBM
+```{r}
+# the distribution of the prices from geometric brownin motion. 
+
+gbm%>%
+    as.data.frame()%>%
+  mutate(ix=1:nrow(gbm))%>%
+  pivot_longer(-ix, names_to="sim", values_to="price") %>%
+data.frame(
+  price=gbm[t,]
+)%>%
+  ggplot(.,mapping=aes(x=price))+
+  geom_histogram(mapping=aes(),binwidth=0.1)+
+  geom_density()+
+  ggtitle("terminal price distribution")
+```
+
+# Portfolio growth performance
+```{r}
+rm(list=ls())
+library(ggplot2)
+library(tidyquant)
+library(quantmod)
+library(dplyr)
+#------------------------------------------------------------
+ticker <-c("0150.HK",
+"1913.HK",
+"2020.HK",
+"2331.HK",
+"NKE",
+"VFC",
+"ESLOF",
+"FRCOY",
+"IDEXF",
+"KER.PA",
+"MC.PA",
+"RMS.PA",
+"HM-B.ST",
+"CFR.SW",
+"ADS.DE",
+"BRBY.L",
+"MONC.MI",
+"SFER.MI",
+"COLM",
+"FL",
+"FTCH",
+"GES",
+"GIL",
+"GPS",
+"RL",
+"TPR",
+"UAA",
+"UHR.SW",
+"7936.T",
+"PUM.DE"
+)
+#----------------------------------------------
+df <-tq_get(get = "stock.prices",x=ticker, from="2015-01-01")
+stock_returns_monthly <- df %>%
+  group_by(symbol)%>%
+  tq_transmute(., 
+               select     = adjusted, 
+                 mutate_fun = periodReturn, 
+                 period     = "monthly", 
+                 col_rename = "Ra")
+#----------------------------------------------------------------
+market_caps <- c(0.256,312,178,118,72.2,69.3,65.5,60.4,54.5,34.5,30.7,22.6,19.8,18.7,13.8,12.2,11.3,10.6,8.39,8.31,6.75,5.35,4.83,4.22,3.60,3.48,3.31,2.79,2.69,1.11 )%>%
+  data.frame()
+weights <-market_caps%>%
+  mutate(weights = market_caps/sum(market_caps))
+colnames(weights) <-c("Market_cap","weights")
+wts <- weights$weights
+w <-wts%>%zoo()%>%as.numeric()
+#------------------------------------------------------------------------------------
+portfolio_growth_monthly <- stock_returns_monthly %>%
+    tq_portfolio(assets_col   = symbol, 
+                 returns_col  = Ra, 
+                 weights      = w, 
+                 col_rename   = "investment.growth",
+                 wealth.index = TRUE) %>%
+    mutate(investment.growth = investment.growth * 1000)
+portfolio_growth_monthly
+#--------------------------------------------------------------------
+portfolio_growth_monthly %>%
+  ggplot(., mapping=aes(x=date, y=investment.growth))+
+    geom_line(size = 2) +
+    labs(title = "Portfolio Growth",
+         subtitle = "Comparing Multiple Portfolios",
+         x = "", y = "Portfolio Value",
+         color = "Portfolio") +
+    geom_smooth(method = "loess") +
+    theme_tq() +
+    scale_color_tq() +
+    scale_y_continuous(labels = scales::dollar)
+
+library(highcharter)
+library(htmltools)
+portfolio_growth_monthly %>%
+  hchart(.,
+         type="line",
+         mapping=hcaes(x=as.Date(date), 
+                       y=round(investment.growth,digits=2)))%>%
+  hc_tooltip(pointFormat="<b>Portfolio Value:</b> ${point.y} <br>")%>%
+  hc_title(text="Portfolio Growth ",
+           style=list(fontSize="16xp", fontWeight="bold"))%>%
+  hc_subtitle(text="Market-Weighted HypeBeast Index Portfolio")%>%
+  hc_xAxis(title = list(text="Dates"))%>%
+  hc_add_theme(hc_theme_google())%>%
+  hc_colors(colors="#29485b")%>%
+  hc_yAxis(title=list(text="Investment Growth"))%>%
+  hc_plotOptions(series = list(animation = list(duration = 15000)))
+```
+
+# Heatmap
+```{r}
+stock_returns_monthly$date <- as.Date(stock_returns_monthly$date)
+data <-stock_returns_monthly%>%
+  group_by(symbol)%>%
+  filter(.,date==max(date))
+library(ggplot2)
+library(tidyverse)
+library(hrbrthemes)
+data%>%
+  rename(Returns="Ra")%>%
+  ggplot(., mapping=aes(symbol,symbol, fill= Returns)) + 
+  geom_tile() +
+  scale_fill_gradient(low="red", high="green") +
+  theme_ipsum() + labs(title="Heatmap", subtitle="Heatmap depicts the return on stock on the current month", x="Symbol", y="Symbol", caption="")
+  
+  
+```
+
