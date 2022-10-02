@@ -1,0 +1,178 @@
+---
+title: "Untitled"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyquant)
+library(glue)
+library(dplyr)
+library(viridis)
+library(ggplot2)
+library(tidyverse)
+```
+
+```{r data}
+rm(list=ls())
+filename <- "C:/Users/alber/Downloads/data.csv/data.csv"
+df <- readr:: read_csv(file=filename)
+```
+
+
+```{r Missing data}
+library(visdat)
+library(naniar)
+# maps
+vis_dat(df)
+# no missing value 
+gg_miss_var(df[, 1:20])
+gg_miss_var(df[, 21:40])
+gg_miss_var(df[, 41:50])
+
+# number missing values in the dataset
+total <- sum(is.na(df)==TRUE)
+
+#--------------------------------------------------------
+if (total >0) {
+  print("There are missing values")
+  } else {
+    print("There are no missing values")
+  }
+```
+
+```{r dataset}
+#X16, X18, X19, X37, X42, X46, X50, X57, X74, X81
+# Select variables 
+names <- c("Y","X16", "X18", "X19", "X37", "X42", "X46", "X50", "X57", "X74", "X81")
+#--------------------------------------------------------------
+# dataset we need
+data <- df%>%
+  select(`Bankrupt?`,`Net Value Per Share (B)`, `Net Value Per Share (C)`, `Persistent EPS in the Last Four Seasons`, `Debt ratio %`, `Operating profit/Paid-in capital`, `Accounts Receivable Turnover`, `Net Value Per Share (C)`, `Net Worth Turnover Rate (times)`, `Cash/Total Assets`, `Cash Turnover Rate`, `Cash Flow to Liability`)
+Y <- data$`Bankrupt?`
+#-------------------------
+colnames(data) <- names
+library(corrplot)
+data$Y <- as.numeric(data$Y)
+corrplot:: corrplot(cor(data), method="circle")
+```
+
+```{r Normalization}
+sum_TRUEs <- matrix(1, ncol=ncol(data))
+for(j in 1:ncol(data)){
+  sum_TRUEs[1,j]= sum((data[,j]>1))
+}
+
+#_-------------------------
+# Normalization of the data 
+nor <-function(x) { (x -min(x))/(max(x)-min(x))   }
+
+data$X42 <- nor(data$X42)
+
+data$X74 <- nor(data$X74)
+```
+According to Sum_trues variable, there are values greater than 1 in columns 7 (X42) and 10 (X74). Therefore, it is imperative to normalise those columns/columns. 
+
+```{r Generalised Linear Regression}
+# We convert bankruptcy to a factor because we treat it as a categorical variable
+data$Y <- factor(data$Y)
+logit.model2 <- glm(Y~ X16+ X18+ X19+ X37+ X42+ X46+ X50+ X57+ X74+ X81 , data = data, family = 'binomial')
+
+#--------------------------------------------------------------------------
+# remove X18 because it is strongly correlated with X16. 
+# remove X46 because it is statistically insignificant.
+logit.model <- glm(Y~ X16+ X37+ X42+ X50+ X57+ X74+ X81 , data = data, family = 'binomial')
+# summary
+summary(logit.model)
+# Confidence intervals of the regression coefficients. 
+confint(logit.model)%>%
+  round(digits=4)
+```
+
+```{r Preidction}
+#
+predicted_data <- predict(logit.model)%>%
+  data.frame()
+
+colnames(predicted_data)[1] <- "predicted"
+
+df <-cbind(data, predicted_data)
+pred_0 <- df%>%
+  filter(Y==0)%>% 
+  select( predicted)%>%
+  mutate(Y=0)
+pred_1 <- df%>%
+  filter(Y==1)%>% 
+  select( predicted)%>%
+  mutate(Y=1)
+library(data.table)
+df1 <- melt(
+  rbind(data.table(pred_0), data.table(pred_1)), id.vars="Y"
+)
+
+df1%>%
+  arrange(value)%>%
+  ggplot(., mapping=aes(x=1:nrow(df), y=1/(1+exp(-value)), group=Y, col=Y)) + geom_point(size=1.5) + theme_bw()+ labs(
+    x="Index", y="Probability of default", title="Sigmoid Function"
+  )
+
+```
+
+
+```{r Cluster Analysis}
+# select the data 
+#Use means of each independent predictor grouped by default and non-default firms
+non_default_medians<-data[-c(3,6)]%>%
+  filter(Y==0)%>%
+  .[-c(1)]%>%
+  apply(.,2,FUN=median)
+
+default_medians <- data[-c(3,6)]%>%
+  filter(Y==1)%>%
+  .[-c(1)]%>%
+  apply(.,2,FUN=median)
+
+df2 <- rbind(default_medians, non_default_medians)%>%
+  cbind(data.frame(Y=c(1,0)), .)
+
+df2%>%
+  data.table()%>%
+  melt(id.vars="Y")%>%
+  ggplot(mapping=aes(x=variable, y=value, group=Y, col=as.factor(Y))) + geom_point()+geom_line() +theme_bw() + labs( y="Median of parameters", x="Predictors", title="Average of predictors", subtitle="Grouped by bankrupt (1) and Non-bankrupt (0) firms")
+
+```
+The cash turnover rate of bankrupt firms (1) exceeds that of non-bankrupt ones, indicating that firms with low cash reserves tend to be in financial distress. 
+```{r 2 variants}
+library(class)
+# split data into 80/20
+train.ind <- sample(seq_len(nrow(data)), size = floor(0.80*nrow(data)))
+bankruptcy.train <- data[train.ind,]
+bankruptcy.test <- data[-train.ind,]
+
+glm_model <- glm(
+  data=bankruptcy.train, formula=Y~X16+X19+X37+X42+X50+X57+X74+X81, family="binomial"
+)
+summary(glm_model)
+# predict on test
+p <- predict(glm_model, bankruptcy.test, type="response")
+# if P exceeds a threshold of 0.5,1 else 0
+def_or_no_default <- ifelse(p>0.75,1,0)
+# convert to factor factor
+p_class <- factor(def_or_no_default, levels=levels(bankruptcy.test[["Y"]]))
+# create confusion matrix
+library(caret)
+confusionMatrix(p_class, bankruptcy.test[["Y"]])
+#----------------------------------------------------------------------
+
+#OR
+ ##run knn function with 5 clusters 
+pr <- knn(bankruptcy.train, bankruptcy.test,cl=bankruptcy.train$Y, k=5)
+
+##create confusion matrix
+tab <- table(pr,bankruptcy.test$Y)
+tab
+```
+From the confusion matrix we can see there are no false bankruptcies
