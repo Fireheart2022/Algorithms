@@ -1,0 +1,325 @@
+---
+title: "Social Media Portfolio Performance"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    source_code: embed
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(flexdashboard)
+library(shiny)
+library(scales)
+library(tidyverse)
+library(highcharter)
+library(htmltools)
+library(tidyquant)
+library(shinydashboard)
+library(data.table)
+library(gt)
+library(plotly)
+library(ggthemes)
+```
+
+```{r}
+rm(list=ls())
+raw_data <- read_csv("C:/Users/alber/OneDrive/Documents/raw data.csv")%>%
+  select(Symbol,`Market Cap`, `Company Name` )
+```
+
+```{r data}
+#rm(list=ls())
+tickers <- raw_data$Symbol
+start_date <- "2019-06-01"
+df <- tq_get(x=tickers, get="stock.prices",from=start_date)
+monthly_returns <-df%>%
+  group_by(symbol)%>%
+  tq_transmute(select=close, mutate_fun=periodReturn, col_rename = "monthly.returns", period="monthly")
+weights_stocks =raw_data$`Market Cap`/sum(raw_data$`Market Cap`)
+#-----------------------------------------------------------
+portfolio_monthly_returns <- monthly_returns%>%
+  tq_portfolio(
+    assets_col=symbol,
+    returns_col = monthly.returns,
+    weights=weights_stocks,
+    col_rename="investment.growth",
+    wealth.index=TRUE
+  )%>%
+    mutate(investment.growth = investment.growth * 1000000)# initial investment is $1000000
+
+# Now import benchmark 
+mkt <- tq_get(x="^GSPC", from=start_date)%>%
+  group_by(symbol)%>%
+  tq_transmute(select=close, mutate_fun=periodReturn, col_rename = "mkt.monthly.returns", period="monthly")%>%
+  tq_portfolio(
+    assets_col=symbol,
+    returns_col = mkt.monthly.returns,
+    weights=1,
+    col_rename="investment.growth",
+    wealth.index=TRUE
+  )%>%
+    mutate(investment.growth = investment.growth * 1000000)
+```
+
+Column {data-width=550 .tabset .tabset-fade}
+------------------------------------------------------
+### Chart of Market Value - Weighted Portfolio
+
+```{r}
+portfolio_monthly_returns$date <- as.Date(portfolio_monthly_returns$date)
+portfolio_monthly_returns$investment.growth <-round(
+  portfolio_monthly_returns$investment.growth,digits=2
+)
+#-------------------------------------------------------------------
+
+df <- left_join(portfolio_monthly_returns, mkt, by="date")
+names <- c("date","port","mkt")
+colnames(df) <- names
+#rounding the numbers in the market column
+df$mkt <- round(df$mkt, digits=2)
+df <- data.table(df)
+df <-melt(df, id="date")
+df%>%
+  data.frame()%>%
+  hchart(type="line",mapping=hcaes(x=date,y=value, group=variable, color=variable))%>%
+  hc_add_theme(hc_theme_darkunica())%>%
+  hc_yAxis(text="Investment Growth")%>%
+  hc_tooltip(pointFormat="<b> Portfolio Value:</b> ${point.y} <br>")%>%
+  hc_plotOptions(
+    series = list(animation = list(duration = 5000))
+    )%>%
+  hc_title(text="Portfolio Value: Market vs Stock portfolios")%>%
+  hc_subtitle(text=paste("Date starts from",start_date))%>%
+  hc_yAxis(title = list(text = "Portfolio Growth"),
+           opposite = TRUE,
+           minorTickInterval = "auto",
+           minorGridLineDashStyle = "LongDashDotDot",
+           showFirstLabel = TRUE,
+           showLastLabel = TRUE)
+```
+### Assets
+```{r}
+data.frame(
+Stocks=raw_data$Symbol, 
+"Company Name" =raw_data$`Company Name`)%>%
+  gt()%>%
+  tab_header(title=c("Portfolio assets"
+                        ))
+  
+```
+### META
+```{r META}
+tq_get(x="META", from=start_date)%>%
+  hchart(type="line",mapping=hcaes(x=date,y=close))%>%
+  hc_add_theme(hc_theme_darkunica())%>%
+  hc_yAxis(text="Stock Price")%>%
+  hc_tooltip(pointFormat="<b> Stock Price:</b> ${point.y} <br>")%>%
+  hc_plotOptions(
+    series = list(animation = list(duration = 5000))
+    )%>%
+  hc_title(text="Stock Price: META")%>%
+  hc_subtitle(text=paste("Date starts from",start_date))%>%
+  hc_yAxis(title = list(text = "Portfolio Growth"),
+           opposite = TRUE,
+           minorTickInterval = "auto",
+           minorGridLineDashStyle = "LongDashDotDot",
+           showFirstLabel = TRUE,
+           showLastLabel = TRUE)
+```
+
+```{r}
+# risk free rate
+rf <- tq_get("^TYX", from=start_date)%>%
+  tq_transmute(select=adjusted,
+               mutate_fun=periodReturn, 
+               col_rename ="return")
+  
+rf <-rf%>%
+    as.data.frame()%>%
+  select(return)
+  
+rf <-rf[nrow(rf),1]*12
+# beta 
+port <- filter(df,variable=="port")%>%
+  rename(port="variable",
+         port_value="value")
+mkt <- filter(df, variable=="mkt")%>%
+  rename(mkt="variable", 
+         mkt_value="value")
+data <- data.frame(port, mkt)%>%
+  mutate(port_return=log(port_value) - log(lag(port_value)),
+         mkt_return=log(mkt_value) - log(lag(mkt_value))
+         )
+# average return on the portfolio
+avg_port_return <- data%>%
+  select(port_return)%>%
+  zoo()%>%
+  as.numeric()%>%
+  median(., na.rm=TRUE)*12
+# average return on the market 
+avg_mkt_return<- data%>%
+  select(mkt_return)%>%
+  zoo()%>%
+  as.numeric()%>%
+  median(., na.rm=TRUE)*12
+# Regression model
+mdl <- lm(data=data, formula=port_return ~ mkt_return)
+# beta of portfolio
+beta <- mdl$coefficients[2]
+# Jensen's alpha 
+alpha <- avg_port_return - (rf + beta*(avg_mkt_return - rf))
+
+a <- if (alpha < 0) {
+  print("The portfolio performs poorly relative to its benchmark (S&P500)")
+} else if (alpha == 0 ){
+ print("The portfolio and the market have equally performed")
+} else {
+  print("Portfolio outperformed the market")
+}
+
+#-----------------------------------------------------------------
+#Now to calculate the information ratio 
+#tracking error 
+tracking_error_sd <- data%>%
+  transmute( tracking_error= port_return - mkt_return)%>%
+  zoo()%>%
+  sd(na.rm=TRUE)*sqrt(12)
+info_ratio <- (avg_port_return - avg_mkt_return)/ tracking_error_sd
+
+b<- if (info_ratio < 0) {
+  print("The portfolio returns are more volatile over time and not as consistent in exceeding the benchmark.")
+} else if (info_ratio == 0 ){
+ print("The portfolio are as volatile as the market")
+} else {
+  print("Portfolio is more likely to beat the market in the future")
+}
+#---------------------------------------------------------------------
+#Sharpe Ratio metric 
+port_risk <- data%>%
+  select(port_return)%>%
+  zoo()%>%
+  sd(na.rm=TRUE)
+Sharpe_Ratio <-  (avg_port_return -rf)/ port_risk
+c<- if (Sharpe_Ratio < 0) {
+  print("Portfolio offers poor excess returns per unit of risk")
+} else if (Sharpe_Ratio == 0 ){
+ print("The portfolio gains no excess returns")
+} else {
+  print("The portfolio yields greater excess returns per unit of risk")
+}
+d <- data.frame("Jensens alpha" = alpha,
+           "Information Ratio"=info_ratio, 
+           "Sharpe Ratio"=Sharpe_Ratio
+                            )%>%
+  round(digits=2)
+rownames(d)<- ""
+```
+
+### Performance metrics
+```{r}
+#------------------------------------------------------------------
+#Insert performance metrics' values in a table
+d%>%
+  gt()%>%
+ tab_header(
+   title=md("Portfolio's performance"),
+   subtitle= paste("from ", start_date,"to ", Sys.Date())
+ )%>%
+  tab_source_note(source_note=data.frame(a,b,c))
+```
+
+
+Column {data-width=450 .tabset .tabset-fade}
+---------------------------------------------
+### Distribution
+
+```{r}
+library(ggplot2)
+p <- portfolio_monthly_returns%>%
+  mutate(investment.returns=log(investment.growth)-log(lag(investment.growth)))%>%
+  ggplot(., mapping=aes(x=investment.returns))+ geom_histogram(col="#FF7518", fill="#D23B05")+ scale_x_continuous(labels=scales::percent_format())+ labs(x="Investment Returns", title="Distribution of Portfolio Returns")+theme_bw()
+ggplotly(p)
+```
+### Regression
+```{r regression}
+#regression analysis 
+port <- filter(df,variable=="port")%>%
+  rename(port="variable",
+         port_value="value")
+mkt <- filter(df, variable=="mkt")%>%
+  rename(mkt="variable", 
+         mkt_value="value")
+data <- data.frame(port, mkt)%>%
+  mutate(port_return=log(port_value) - log(lag(port_value)),
+         mkt_return=log(mkt_value) - log(lag(mkt_value))
+         )
+data%>%
+  ggplot(mapping=aes(x=mkt_return,
+                     y=port_return)) + geom_smooth(method="lm", se=FALSE, 
+                                                   col="#051094") + geom_point(col="#8c4626") + scale_y_continuous(labels = scales::percent_format())+
+  scale_x_continuous(labels=scales::percent_format())+
+  labs(
+    x="Market Returns", 
+    y="Portolio Returns",
+    title="Capital Asset Pricing Model", 
+    subtitle="Regressing portfolio against market"
+  )+ theme_bw()
+```
+
+### Forecast
+
+```{r}
+# Initial price
+S0 <- portfolio_monthly_returns$investment.growth %>%
+  tail(n=1)
+#risk, standard deviation
+sigma <- portfolio_monthly_returns%>%
+  mutate(investment.returns=log(investment.growth) - log(lag(investment.growth)))%>%
+  select(investment.returns)%>%
+  na.omit()%>%
+  unlist()%>%
+  sd()
+sigma <- sigma *sqrt(12)
+# Average value
+r <- portfolio_monthly_returns%>%
+  mutate(investment.returns=log(investment.growth) - log(lag(investment.growth)))%>%
+  select(investment.returns)%>%
+  na.omit()%>%
+  unlist()
+
+mu <- prod(1+r)^(1/length(r))*12
+# number of sims
+nsim <-1000
+nrow <-12 # months
+#last date 
+last_date <- portfolio_monthly_returns%>%
+  tail(n=1)%>%
+  select(date)%>%
+  as.numeric()%>%
+  as.Date(format="%Y-%m-%d")
+
+# GBM 
+gbm <- matrix(nrow=nrow, ncol=nsim)
+# loop
+for (simu in 1:nsim) {
+    gbm[1, simu] <- S0
+    for (day in 2:nrow) {
+      epsilon <- rnorm(1)
+      dt = 1 / 365
+      gbm[day, simu] <- gbm[(day-1), simu] * exp((mu - sigma * sigma / 2) * dt + sigma * epsilon * sqrt(dt))
+    }
+}
+gbm <- gbm %>%
+  data.frame()
+# add a column of future dates
+gbm$dates <- seq(last_date, by="month", length.out=nrow)%>%
+  data.frame()
+l<- melt(data.table(gbm), id="dates")
+p <- l%>%
+  ggplot(., mapping=aes(x=dates, y=value, group=variable, color=variable)) +geom_line() + scale_y_continuous(labels=scales::dollar_format()) + labs(x="Dates",y="Investment Value" ,title="Forecasting Portfolio Value", subtitle="Prediting investment growth from today")+ theme_igray()+
+  theme(legend.position = 'none')
+
+ggplotly(p)
+```
