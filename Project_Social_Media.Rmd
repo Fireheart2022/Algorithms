@@ -30,7 +30,7 @@ raw_data <- read_csv("C:/Users/alber/OneDrive/Documents/raw data.csv")%>%
 ```
 
 ```{r data}
-#rm(list=ls())
+
 tickers <- raw_data$Symbol
 start_date <- "2019-06-01"
 df <- tq_get(x=tickers, get="stock.prices",from=start_date)
@@ -111,7 +111,7 @@ Stocks=raw_data$Symbol,
 ```
 ### META
 ```{r META}
-tq_get(x="META", from=start_date)%>%
+tq_get(x="TWTR", from=start_date)%>%
   hchart(type="line",mapping=hcaes(x=date,y=close))%>%
   hc_add_theme(hc_theme_darkunica())%>%
   hc_yAxis(text="Stock Price")%>%
@@ -172,11 +172,11 @@ beta <- mdl$coefficients[2]
 alpha <- avg_port_return - (rf + beta*(avg_mkt_return - rf))
 
 a <- if (alpha < 0) {
-  print("The portfolio performs poorly relative to its benchmark (S&P500)")
+  print("1. The portfolio performs poorly relative to its benchmark (S&P500)")
 } else if (alpha == 0 ){
- print("The portfolio and the market have equally performed")
+ print("1. The portfolio and the market have equally performed")
 } else {
-  print("Portfolio outperformed the market")
+  print("1. Portfolio outperformed the market")
 }
 
 #-----------------------------------------------------------------
@@ -189,25 +189,25 @@ tracking_error_sd <- data%>%
 info_ratio <- (avg_port_return - avg_mkt_return)/ tracking_error_sd
 
 b<- if (info_ratio < 0) {
-  print("The portfolio returns are more volatile over time and not as consistent in exceeding the benchmark.")
+  print("2. The portfolio returns are more volatile over time and not as consistent in exceeding the benchmark.")
 } else if (info_ratio == 0 ){
- print("The portfolio are as volatile as the market")
+ print("2. The portfolio are as volatile as the market")
 } else {
-  print("Portfolio is more likely to beat the market in the future")
+  print("2. Portfolio is more likely to beat the market in the future")
 }
 #---------------------------------------------------------------------
 #Sharpe Ratio metric 
 port_risk <- data%>%
   select(port_return)%>%
   zoo()%>%
-  sd(na.rm=TRUE)
+  sd(na.rm=TRUE)*sqrt(12)
 Sharpe_Ratio <-  (avg_port_return -rf)/ port_risk
 c<- if (Sharpe_Ratio < 0) {
-  print("Portfolio offers poor excess returns per unit of risk")
+  print("3. Portfolio offers poor excess returns per unit of risk")
 } else if (Sharpe_Ratio == 0 ){
- print("The portfolio gains no excess returns")
+ print("3.The portfolio gains no excess returns")
 } else {
-  print("The portfolio yields greater excess returns per unit of risk")
+  print("3.  The portfolio yields greater excess returns per unit of risk")
 }
 d <- data.frame("Jensens alpha" = alpha,
            "Information Ratio"=info_ratio, 
@@ -239,7 +239,7 @@ Column {data-width=450 .tabset .tabset-fade}
 library(ggplot2)
 p <- portfolio_monthly_returns%>%
   mutate(investment.returns=log(investment.growth)-log(lag(investment.growth)))%>%
-  ggplot(., mapping=aes(x=investment.returns))+ geom_histogram(col="#FF7518", fill="#D23B05")+ scale_x_continuous(labels=scales::percent_format())+ labs(x="Investment Returns", title="Distribution of Portfolio Returns")+theme_bw()
+  ggplot(., mapping=aes(x=investment.returns))+ geom_histogram(bins=10,col="#FF7518", fill="#D23B05")+ scale_x_continuous(labels=scales::percent_format())+ labs(x="Investment Returns", title="Distribution of Portfolio Returns")+theme_bw()
 ggplotly(p)
 ```
 ### Regression
@@ -288,9 +288,9 @@ r <- portfolio_monthly_returns%>%
   select(investment.returns)%>%
   na.omit()%>%
   unlist()
-
-mu <- prod(1+r)^(1/length(r))*12
-# number of sims
+# median or annualised trend value.
+mu <- median(r)*12
+# number of sim
 nsim <-1000
 nrow <-12 # months
 #last date 
