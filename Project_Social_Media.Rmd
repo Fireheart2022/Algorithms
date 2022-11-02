@@ -23,7 +23,7 @@ library(plotly)
 library(ggthemes)
 ```
 
-```{r}
+```{r echo=FALSE}
 rm(list=ls())
 raw_data <- read_csv("C:/Users/alber/OneDrive/Documents/raw data.csv")%>%
   select(Symbol,`Market Cap`, `Company Name` )
@@ -109,10 +109,21 @@ Stocks=raw_data$Symbol,
                         ))
   
 ```
+### Weighting
+```{r}
+raw_data %>%
+  mutate(weights=round(weights_stocks*100, digits=2))%>%
+  hchart(type="pie", hcaes(x=`Company Name`,y=weights))%>%
+  hc_add_theme(hc_theme_economist())%>%
+  hc_colors(colors=viridis::plasma(12))%>%
+  hc_tooltip(pointFormat="<b> Weight:</b> {point.y}% <br>")%>%
+  hc_title(text="Proportion of stocks within the portfolio")%>%
+  hc_subtitle(text="The proportions are based on the respective Market Capitalisation")
+```
 ### META
 ```{r META}
-tq_get(x="TWTR", from=start_date)%>%
-  hchart(type="line",mapping=hcaes(x=date,y=close))%>%
+tq_get(x="META", from=start_date)%>%
+  hchart(type="line",mapping=hcaes(x=date,y=round(close, digits=2)))%>%
   hc_add_theme(hc_theme_darkunica())%>%
   hc_yAxis(text="Stock Price")%>%
   hc_tooltip(pointFormat="<b> Stock Price:</b> ${point.y} <br>")%>%
@@ -138,9 +149,10 @@ rf <- tq_get("^TYX", from=start_date)%>%
   
 rf <-rf%>%
     as.data.frame()%>%
-  select(return)
-  
-rf <-rf[nrow(rf),1]*12
+  select(return)%>%
+  zoo()%>%
+  as.numeric()%>%
+  median(na.rm=TRUE)*12
 # beta 
 port <- filter(df,variable=="port")%>%
   rename(port="variable",
@@ -201,10 +213,10 @@ port_risk <- data%>%
   select(port_return)%>%
   zoo()%>%
   sd(na.rm=TRUE)*sqrt(12)
-Sharpe_Ratio <-  (avg_port_return -rf)/ port_risk
-c<- if (Sharpe_Ratio < 0) {
+Sharpe_Ratio <-  (avg_port_return -rf)/port_risk
+c<- if (Sharpe_Ratio < 1) {
   print("3. Portfolio offers poor excess returns per unit of risk")
-} else if (Sharpe_Ratio == 0 ){
+} else if (Sharpe_Ratio == 1 ){
  print("3.The portfolio gains no excess returns")
 } else {
   print("3.  The portfolio yields greater excess returns per unit of risk")
