@@ -1,0 +1,38 @@
+---
+title: "Untitled"
+output: html_document
+date: '2022-08-11'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyquant)
+library(highcharter)
+library(tidyverse)
+library(viridis)
+annual_returns <- tq_get(x=c("NFLX","FB","AMZN","AAPL"), 
+                         get="stock.prices")%>%
+    group_by(symbol) %>%
+    tq_transmute(select     = adjusted, 
+                 mutate_fun = periodReturn, 
+                 period     = "yearly", 
+                 type       = "log")
+df <-annual_returns
+fntltp <- JS("function(){
+             return this.point.x + ' ' +  this.series.yAxis.categories[this.point.y] + ':<br>' +
+             Highcharts.numberFormat(this.point.value, 2);
+             }")
+hchart(df, "heatmap", hcaes(x = date, y = symbol, value = yearly.returns)) %>% 
+  hc_colorAxis(stops = color_stops())%>%
+  hc_tooltip(formatter = fntltp)%>%
+  hc_yAxis(reversed = TRUE, offset = -20, tickLength = 0,
+           gridLineWidth = 0, minorGridLineWidth = 0,
+           labels = list(style = list(fontSize = "8px")))%>%
+  hc_title(text = "Stock returns") %>% 
+  hc_legend(layout = "vertical", verticalAlign = "top",
+            align = "right", valueDecimals = 0)
+```
+
