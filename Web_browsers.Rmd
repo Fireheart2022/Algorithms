@@ -1,0 +1,76 @@
+---
+title: "Web Browsers"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+   
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+library(flexdashboard)
+library(highcharter)
+library(tidyverse)
+library(scales)
+library(htmltools)
+library(rvest)
+library(gt)
+```
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+### Pie Chart
+
+```{r, echo=FALSE}
+rm(list=ls())
+url <- "https://kinsta.com/browser-market-share/"
+#names of the browsers
+names <-url %>%
+  read_html()%>%
+  html_nodes("tr+ tr td:nth-child(1)")%>%
+  html_text(trim=TRUE)%>%
+  data.frame()
+# market share of the web browsers
+mkt_share<-url %>%
+  read_html()%>%
+  html_nodes("tr+ tr td:nth-child(2)")%>%
+  html_text(trim=TRUE)%>%
+  gsub(pattern="%", replacement="")%>%
+  data.frame()
+# data frame 
+df <- data.frame(names, mkt_share)
+colnames(df) <- c("names","mkt.share")
+df$mkt.share <- as.numeric(df$mkt.share)
+# now make the pie chart
+df %>%
+  hchart(type="pie",hcaes(
+    x=names,
+    y=mkt.share
+  ))%>%
+  hc_title( text=c("Web Browsers"))%>%
+  hc_subtitle(text="Market share of web browsers in 2022")%>%
+  hc_add_theme(hc_theme_google())%>%
+  hc_tooltip(pointFormat="<b>Market Share: </b> {point.y}% <br>")%>%
+  hc_credits(enabled = TRUE,text="Source: KINSTA",style = list(fontSize = "10px"))
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Table 
+
+```{r}
+tbl <-df
+tbl$mkt.share <-tbl$mkt.share/100
+tbl_gt <-tbl%>%
+  gt()%>%
+  gt::fmt_percent(columns=mkt.share)%>%
+  gt:: tab_header(title=c("Web Browsers"),
+                  subtitle="Market Share of web browsers in 2022")%>%
+  gt::cols_label(names="Browser", 
+                 mkt.share="Market Share")%>%
+#Add a data source footnote
+   tab_source_note(source_note = "Source: KINSTA.com")
+div(style='height:550px; overflow-y: scroll', tbl_gt)
+```
+
