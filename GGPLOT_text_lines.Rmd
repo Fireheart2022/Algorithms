@@ -1,0 +1,73 @@
+---
+title: "Interest Rate"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    runtime: shiny
+---
+Column {data-width=650}
+-----------------------------------------------
+### Interest Rate
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(flexdashboard) # Makes the interactive dashboard
+
+library(tidyverse)
+library(quantmod)
+library(ggplot2)
+library(tibble) # Just in case
+library(plotly)
+```
+
+```{r, echo=FALSE}
+rm(list=ls())
+# Import data " Interest Rates, Discount Rate for United States"
+# from  the FED 
+df <- quantmod:: getSymbols(Symbols=c("INTDSRUSM193N"), src="FRED",auto.assign=FALSE)
+
+# Extract the dates from the rows
+df<- rownames_to_column(data.frame(df))%>%
+  rename(dates="rowname", 
+         interest_rate="INTDSRUSM193N")
+# convert dates from character into datetime
+df$dates <- as.Date(df$dates)
+# Plot the interest rate
+p <- df%>%
+  ggplot(., mapping=aes(
+    x=dates, 
+    y= interest_rate/100 #original data is expressed in percentages without a symbol (%)
+  )) + # plot the line 
+  geom_point(col="red") + 
+  # add a title 
+  ggtitle(label="Interest rate", 
+          subtitle="Interest rate in the USA over time") +
+  labs(x="Dates", 
+       y="Interest rate") +
+  theme_bw()+
+  # express y-axis in percentage format
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
+  #plot the trend line using LOESS smoother
+  geom_smooth(method="loess",color = "blue", fill = "green", size=1, level=0.99)
+
+# Now make the plot in plotly format
+ggplotly(p)
+```
+
+Column {data-width=350}
+-----------------------------------------------
+### ggplot line
+```{r, echo=FALSE}
+df %>%
+  ggplot(., 
+         mapping=aes(
+           x=dates, 
+           y=interest_rate/100
+         ))+
+  geom_line(col="darkblue") + 
+  labs(title="Interest Rate", 
+       subtitle="Interest Rate in the USA over time", 
+       y="Interest rate", 
+       x="Dates")+ theme_bw()+ scale_y_continuous(labels=scales::percent_format())+ geom_vline(xintercept="2008-03-26"%>%as.Date(), col="red") + annotate("text",x="2008-03-26"%>%as.Date(),y=0.1, angle=90, label="\n Financial crisis 2008", col="blue")
+```
+
